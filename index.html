@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FitLambda — Serverless Workout Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0f14; --surface: #161a23; --border: #252b3a;
+      --accent: #00f5a0; --accent2: #00d4ff; --warn: #ff6b6b;
+      --text: #e8eaf2; --muted: #5a6480; --radius: 12px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow-x: hidden; }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: linear-gradient(rgba(0,245,160,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,245,160,0.03) 1px, transparent 1px);
+      background-size: 40px 40px; pointer-events: none; z-index: 0;
+    }
+    header {
+      position: relative; z-index: 1; padding: 32px 40px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { font-size: 1.6rem; font-weight: 800; letter-spacing: -1px; color: var(--accent); }
+    .logo span { color: var(--text); }
+    .tag { font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; }
+    main { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+    #auth-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin-bottom: 32px; }
+    #auth-section h2 { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 20px; font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+    .input-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+    label { font-size: 0.75rem; color: var(--muted); font-family: 'Space Mono', monospace; text-transform: uppercase; }
+    input, select { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Space Mono', monospace; font-size: 0.85rem; padding: 10px 14px; outline: none; transition: border-color 0.2s; width: 100%; }
+    input:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--bg); }
+    .btn { font-family: 'Space Mono', monospace; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border: none; border-radius: 8px; cursor: pointer; padding: 10px 20px; transition: all 0.2s; white-space: nowrap; }
+    .btn-primary { background: var(--accent); color: #0d0f14; }
+    .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    #user-badge { display: none; align-items: center; gap: 12px; background: rgba(0,245,160,0.07); border: 1px solid rgba(0,245,160,0.2); border-radius: 8px; padding: 10px 16px; }
+    #user-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+    #user-badge span { font-family: 'Space Mono', monospace; font-size: 0.8rem; }
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+    @media(max-width:640px){.panels{grid-template-columns:1fr}}
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+    .panel-title { font-family: 'Space Mono', monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 20px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .status-msg { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-family: 'Space Mono', monospace; font-size: 0.8rem; display: none; }
+    .status-msg.success { background: rgba(0,245,160,0.1); border: 1px solid rgba(0,245,160,0.3); color: var(--accent); }
+    .status-msg.error { background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3); color: var(--warn); }
+    #progress-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 32px; }
+    .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 28px; }
+    @media(max-width:480px){.stats-row{grid-template-columns:1fr 1fr}}
+    .stat-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px 16px; text-align: center; }
+    .stat-card .val { font-size: 2rem; font-weight: 800; color: var(--accent); line-height: 1; }
+    .stat-card .lbl { font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; margin-top: 6px; }
+    .log-table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-family: 'Space Mono', monospace; font-size: 0.75rem; }
+    thead th { text-align: left; padding: 10px 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
+    tbody tr:hover { background: rgba(0,245,160,0.04); }
+    tbody td { padding: 10px 12px; color: var(--text); }
+    .ex-badge { display: inline-block; background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.2); color: var(--accent2); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; }
+    .cal-val { color: var(--accent); font-weight: 700; }
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.8rem; }
+    .spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .locked { opacity: 0.35; pointer-events: none; user-select: none; }
+
+    /* ── Calendar ─────────────────────────────────────────────────────── */
+    #calendar-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 32px; }
+    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .cal-month { font-size: 1.1rem; font-weight: 800; color: var(--text); }
+    .cal-nav { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 14px; cursor: pointer; font-family: 'Space Mono', monospace; font-size: 0.8rem; transition: all 0.2s; }
+    .cal-nav:hover { border-color: var(--accent); color: var(--accent); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; }
+    .cal-day-name { text-align: center; font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; padding: 8px 0; }
+    .cal-cell {
+      aspect-ratio: 1; border-radius: 8px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; cursor: default;
+      border: 1px solid transparent; transition: all 0.15s; position: relative;
+      font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--muted);
+    }
+    .cal-cell.has-workout { background: rgba(0,245,160,0.1); border-color: rgba(0,245,160,0.3); color: var(--accent); cursor: pointer; }
+    .cal-cell.has-workout:hover { background: rgba(0,245,160,0.2); }
+    .cal-cell.today { border-color: var(--accent2); color: var(--accent2); font-weight: 700; }
+    .cal-cell.today.has-workout { border-color: var(--accent); color: var(--accent); }
+    .cal-cell.other-month { opacity: 0.2; }
+    .cal-cell .kcal-dot { font-size: 0.55rem; color: var(--accent); margin-top: 2px; }
+    .cal-tooltip {
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 12px; white-space: nowrap;
+      font-size: 0.68rem; color: var(--text); z-index: 10;
+      pointer-events: none; display: none;
+    }
+    .cal-cell:hover .cal-tooltip { display: block; }
+    .today-banner {
+      background: rgba(0,212,255,0.07); border: 1px solid rgba(0,212,255,0.2);
+      border-radius: 8px; padding: 12px 18px; margin-bottom: 20px;
+      font-family: 'Space Mono', monospace; font-size: 0.78rem; color: var(--accent2);
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    footer { position: relative; z-index: 1; text-align: center; padding: 24px; border-top: 1px solid var(--border); font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Fit<span>Lambda</span></div>
+  <div class="tag">CE308 · Serverless · AWS Lambda + DynamoDB</div>
+</header>
+
+<main>
+
+  <!-- AUTH -->
+  <div id="auth-section">
+    <h2>// Session</h2>
+    <div id="login-form">
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:18px;">Enter your User ID to begin tracking.</p>
+      <div class="input-row">
+        <div class="field-group">
+          <label>User ID</label>
+          <input type="text" id="user-id-input" placeholder="e.g. bilal1104" />
+        </div>
+        <button class="btn btn-primary" onclick="setUser()">Connect</button>
+      </div>
+    </div>
+    <div id="user-badge">
+      <div class="dot"></div>
+      <span id="user-label">—</span>
+      <button class="btn btn-secondary" style="margin-left:auto;padding:6px 14px;" onclick="logout()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- LOG + FETCH PANELS -->
+  <div class="panels" id="log-panels">
+    <div class="panel">
+      <div class="panel-title">// Log Workout</div>
+      <div class="form-grid">
+        <div class="field-group full">
+          <label>Exercise</label>
+          <select id="exercise">
+            <option value="push_ups">Push-ups</option>
+            <option value="pull_ups">Pull-ups</option>
+            <option value="squats">Squats</option>
+            <option value="lunges">Lunges</option>
+            <option value="burpees">Burpees</option>
+            <option value="sit_ups">Sit-ups</option>
+            <option value="plank">Plank</option>
+            <option value="mountain_climbers">Mountain Climbers</option>
+            <option value="jumping_jacks">Jumping Jacks</option>
+            <option value="dips">Dips</option>
+          </select>
+        </div>
+        <div class="field-group"><label>Sets</label><input type="number" id="sets" value="3" min="1" max="20"/></div>
+        <div class="field-group"><label>Reps per Set</label><input type="number" id="reps" value="15" min="1" max="200"/></div>
+        <div class="field-group full"><label>Body Weight (kg)</label><input type="number" id="body-weight" value="70" min="30" max="300" step="0.5"/></div>
+      </div>
+      <button class="btn btn-primary" id="log-btn" onclick="logWorkout()" style="margin-top:18px;width:100%;">Submit Workout →</button>
+      <div class="status-msg" id="log-status"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">// Fetch Progress</div>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:20px;line-height:1.6;">Retrieve historical workout logs and aggregate caloric data.</p>
+      <div class="field-group" style="margin-bottom:16px;">
+        <label>Time Range</label>
+        <select id="days-select">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last year</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary" id="progress-btn" onclick="loadProgress()" style="width:100%;">Load Progress ↓</button>
+      <div class="status-msg" id="progress-status"></div>
+    </div>
+  </div>
+
+  <!-- CALENDAR -->
+  <div id="calendar-section">
+    <div class="panel-title">// Workout Calendar</div>
+    <div class="today-banner">
+      <span>📅</span>
+      <span id="today-label">—</span>
+    </div>
+    <div class="cal-header">
+      <button class="cal-nav" onclick="changeMonth(-1)">← Prev</button>
+      <div class="cal-month" id="cal-month-label">—</div>
+      <button class="cal-nav" onclick="changeMonth(1)">Next →</button>
+    </div>
+    <div class="cal-grid" id="cal-grid">
+      <div class="cal-day-name">Sun</div><div class="cal-day-name">Mon</div>
+      <div class="cal-day-name">Tue</div><div class="cal-day-name">Wed</div>
+      <div class="cal-day-name">Thu</div><div class="cal-day-name">Fri</div>
+      <div class="cal-day-name">Sat</div>
+    </div>
+  </div>
+
+  <!-- PROGRESS DASHBOARD -->
+  <div id="progress-section">
+    <div class="panel-title">// Progress Dashboard</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="val" id="stat-workouts">—</div><div class="lbl">Total Workouts</div></div>
+      <div class="stat-card"><div class="val" id="stat-calories">—</div><div class="lbl">Calories Burned</div></div>
+      <div class="stat-card"><div class="val" id="stat-days">—</div><div class="lbl">Days Tracked</div></div>
+    </div>
+    <div class="log-table-wrap">
+      <div class="empty-state" id="empty-msg">Connect your account and load progress to see your workout history.</div>
+      <table id="log-table" style="display:none;">
+        <thead><tr><th>Date</th><th>Exercise</th><th>Sets × Reps</th><th>Weight (kg)</th><th>Calories</th></tr></thead>
+        <tbody id="log-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  CE308 Cloud Computing · Semester Project · GIK Institute &nbsp;|&nbsp;
+  Hasnain Ali Ahmed · Ahmed Rasheed · Muhammad Bilal
+</footer>
+
+<script>
+  // ── CONFIG — replace with your API Gateway URL ────────────────────────────
+  const API_BASE_URL = "https://vk2h5wwqyl.execute-api.eu-north-1.amazonaws.com/prod";
+
+  let currentUser  = null;
+  let allLogs      = [];   // stores fetched logs for calendar
+  let calYear, calMonth;
+
+  // ── Init calendar to current month ───────────────────────────────────────
+  (function initCalendar() {
+    const now = new Date();
+    calYear   = now.getFullYear();
+    calMonth  = now.getMonth();
+    document.getElementById("today-label").textContent =
+      now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+    renderCalendar();
+  })();
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  function setUser() {
+    const val = document.getElementById("user-id-input").value.trim();
+    if (!val) { alert("Please enter a User ID."); return; }
+    currentUser = val;
+    document.getElementById("login-form").style.display = "none";
+    const badge = document.getElementById("user-badge");
+    badge.style.display = "flex";
+    document.getElementById("user-label").textContent = "User: " + val.substring(0, 20) + "…";
+    document.getElementById("log-panels").classList.remove("locked");
+  }
+
+  function logout() {
+    currentUser = null;
+    allLogs = [];
+    document.getElementById("login-form").style.display = "block";
+    document.getElementById("user-badge").style.display = "none";
+    document.getElementById("user-id-input").value = "";
+    document.getElementById("log-panels").classList.add("locked");
+    resetDashboard();
+    renderCalendar();
+  }
+
+  // ── Log Workout ───────────────────────────────────────────────────────────
+  async function logWorkout() {
+    if (!currentUser) { alert("Please connect first."); return; }
+    const payload = {
+      user_id:        currentUser,
+      exercise:       document.getElementById("exercise").value,
+      sets:           parseInt(document.getElementById("sets").value),
+      reps:           parseInt(document.getElementById("reps").value),
+      body_weight_kg: parseFloat(document.getElementById("body-weight").value),
+    };
+    const btn = document.getElementById("log-btn");
+    const status = document.getElementById("log-status");
+    btn.disabled = true; btn.textContent = "Submitting…";
+    showStatus(status, "", "");
+    try {
+      const res  = await fetch(`${API_BASE_URL}/log-workout`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      const raw  = await res.json();
+      const data = parseResponse(raw);
+      if (res.ok) {
+        showStatus(status, `✓ Logged! ${data.calories_burned} kcal burned from ${data.sets}×${data.reps} ${data.exercise.replace(/_/g," ")}.`, "success");
+      } else {
+        showStatus(status, `✗ Error: ${data.error || "Unknown error"}`, "error");
+      }
+    } catch (err) {
+      showStatus(status, `✗ Network error: ${err.message}`, "error");
+    } finally {
+      btn.disabled = false; btn.textContent = "Submit Workout →";
+    }
+  }
+
+  // ── Load Progress ─────────────────────────────────────────────────────────
+  async function loadProgress() {
+    if (!currentUser) { alert("Please connect first."); return; }
+    const days   = document.getElementById("days-select").value;
+    const btn    = document.getElementById("progress-btn");
+    const status = document.getElementById("progress-status");
+    btn.disabled = true; btn.textContent = "Loading…";
+    showStatus(status, "", "");
+    document.getElementById("empty-msg").innerHTML = '<div class="spinner"></div>Fetching from DynamoDB…';
+    document.getElementById("empty-msg").style.display = "block";
+    document.getElementById("log-table").style.display = "none";
+    try {
+      const res  = await fetch(`${API_BASE_URL}/view-progress?user_id=${encodeURIComponent(currentUser)}&days=${days}`);
+      const raw  = await res.json();
+      const data = parseResponse(raw);
+      if (res.ok) {
+        allLogs = data.logs || [];
+        renderDashboard(data);
+        renderCalendar();
+        showStatus(status, `✓ Loaded ${data.total_workouts} workouts from the last ${days} days.`, "success");
+      } else {
+        showStatus(status, `✗ Error: ${data.error || "Unknown error"}`, "error");
+        resetDashboard();
+      }
+    } catch (err) {
+      showStatus(status, `✗ Network error: ${err.message}`, "error");
+      resetDashboard();
+    } finally {
+      btn.disabled = false; btn.textContent = "Load Progress ↓";
+    }
+  }
+
+  // ── Parse Lambda proxy response (handles both wrapped & unwrapped) ────────
+  function parseResponse(raw) {
+    if (raw && typeof raw.body === "string") {
+      try { return JSON.parse(raw.body); } catch(e) { return raw; }
+    }
+    return raw;
+  }
+
+  // ── Render Dashboard ──────────────────────────────────────────────────────
+  function renderDashboard(data) {
+    document.getElementById("stat-workouts").textContent = data.total_workouts ?? 0;
+    document.getElementById("stat-calories").textContent = (parseFloat(data.total_calories) || 0).toFixed(1);
+    document.getElementById("stat-days").textContent     = data.period_days ?? "—";
+    const tbody = document.getElementById("log-tbody");
+    tbody.innerHTML = "";
+    const logs = data.logs || [];
+    if (logs.length === 0) {
+      document.getElementById("empty-msg").innerHTML = "No workouts found in this period.";
+      document.getElementById("empty-msg").style.display = "block";
+      document.getElementById("log-table").style.display = "none";
+      return;
+    }
+    logs.forEach(log => {
+      const date    = log.timestamp ? log.timestamp.split("T")[0] : "—";
+      const exLabel = log.exercise  ? log.exercise.replace(/_/g," ") : "—";
+      tbody.innerHTML += `
+        <tr>
+          <td>${date}</td>
+          <td><span class="ex-badge">${exLabel}</span></td>
+          <td>${log.sets} × ${log.reps}</td>
+          <td>${log.body_weight_kg} kg</td>
+          <td class="cal-val">${parseFloat(log.calories_burned).toFixed(2)} kcal</td>
+        </tr>`;
+    });
+    document.getElementById("empty-msg").style.display = "none";
+    document.getElementById("log-table").style.display = "table";
+  }
+
+  function resetDashboard() {
+    ["stat-workouts","stat-calories","stat-days"].forEach(id => document.getElementById(id).textContent = "—");
+    document.getElementById("log-tbody").innerHTML = "";
+    document.getElementById("log-table").style.display = "none";
+    document.getElementById("empty-msg").innerHTML = "Connect your account and load progress to see your workout history.";
+    document.getElementById("empty-msg").style.display = "block";
+  }
+
+  // ── Calendar ──────────────────────────────────────────────────────────────
+  function changeMonth(delta) {
+    calMonth += delta;
+    if (calMonth > 11) { calMonth = 0;  calYear++; }
+    if (calMonth < 0)  { calMonth = 11; calYear--; }
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const now       = new Date();
+    const todayStr  = now.toISOString().split("T")[0];
+    const firstDay  = new Date(calYear, calMonth, 1);
+    const lastDay   = new Date(calYear, calMonth + 1, 0);
+    const monthName = firstDay.toLocaleDateString("en-US", { month:"long", year:"numeric" });
+    document.getElementById("cal-month-label").textContent = monthName;
+
+    // Build a map: date string → { count, calories }
+    const dayMap = {};
+    allLogs.forEach(log => {
+      const d = log.timestamp ? log.timestamp.split("T")[0] : null;
+      if (!d) return;
+      if (!dayMap[d]) dayMap[d] = { count: 0, calories: 0 };
+      dayMap[d].count++;
+      dayMap[d].calories += parseFloat(log.calories_burned) || 0;
+    });
+
+    // Remove old cells (keep day-name headers = first 7 children)
+    const grid = document.getElementById("cal-grid");
+    while (grid.children.length > 7) grid.removeChild(grid.lastChild);
+
+    // Blank cells before the 1st
+    for (let i = 0; i < firstDay.getDay(); i++) {
+      const blank = document.createElement("div");
+      blank.className = "cal-cell other-month";
+      grid.appendChild(blank);
+    }
+
+    // Day cells
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const dateStr = `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      const cell    = document.createElement("div");
+      const info    = dayMap[dateStr];
+      cell.className = "cal-cell" + (info ? " has-workout" : "") + (dateStr === todayStr ? " today" : "");
+      cell.innerHTML = `<span>${d}</span>`;
+      if (info) {
+        cell.innerHTML += `<span class="kcal-dot">${info.calories.toFixed(0)} kcal</span>`;
+        cell.innerHTML += `<div class="cal-tooltip">${info.count} workout${info.count>1?"s":""} · ${info.calories.toFixed(1)} kcal</div>`;
+      }
+      if (dateStr === todayStr && !info) {
+        cell.innerHTML += `<span class="kcal-dot" style="color:var(--accent2)">today</span>`;
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  function showStatus(el, msg, type) {
+    el.textContent = msg;
+    el.className = "status-msg" + (type ? " "+type : "");
+    el.style.display = msg ? "block" : "none";
+  }
+
+  document.getElementById("log-panels").classList.add("locked");
+</script>
+</body>
+</html>
